@@ -142,8 +142,14 @@ def main():
                 mlflow.log_param(key, value)
             
             # Load model and vectorizer
-            model = load_model(os.path.join(root_dir, 'lgbm_model.pkl'))
-            vectorizer = load_vectorizer(os.path.join(root_dir, 'tfidf_vectorizer.pkl'))
+            # model = load_model(os.path.join(root_dir, 'lgbm_model.pkl'))
+            # vectorizer = load_vectorizer(os.path.join(root_dir, 'tfidf_vectorizer.pkl'))
+            BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+            model_path = os.path.join(BASE_DIR, "lgbm_model.pkl")
+            vec_path = os.path.join(BASE_DIR, "tfidf_vectorizer.pkl")
+
+            model, vectorizer = load_model(model_path, vec_path)
 
             # Load test data for signature inference
             test_data = load_data(os.path.join(root_dir, 'data/interim/test_processed.csv'))

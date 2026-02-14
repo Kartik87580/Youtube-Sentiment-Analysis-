@@ -16,6 +16,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import matplotlib.dates as mdates
 import pickle
+import os
 
 # -------------------- APP INIT --------------------
 app = FastAPI(title="Sentiment API")
@@ -79,8 +80,15 @@ def load_model(model_path, vectorizer_path):
     with open(vectorizer_path, "rb") as f:
         vectorizer = pickle.load(f)
     return model, vectorizer
+    
 
-model, vectorizer = load_model("./lgbm_model.pkl", "./tfidf_vectorizer.pkl")
+# model, vectorizer = load_model("lgbm_model.pkl", "tfidf_vectorizer.pkl")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+model_path = os.path.join(BASE_DIR, "lgbm_model.pkl")
+vec_path = os.path.join(BASE_DIR, "tfidf_vectorizer.pkl")
+
+model, vectorizer = load_model(model_path, vec_path)
 
 # -------------------- ROUTES --------------------
 @app.get("/")

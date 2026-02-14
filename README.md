@@ -48,14 +48,31 @@ A full-stack YouTube sentiment analysis tool featuring a **FastAPI backend** for
 3. Click **Load unpacked**.
 4. Select the `crome_extension` folder from this repository.
 
-## 🖥️ Usage
+### 🐳 Docker Setup
+1. Build the Docker image:
+   ```bash
+   docker build -t youtube-sentiment-backend .
+   ```
+2. Run the container:
+   ```bash
+   docker run -p 8000:8000 youtube-sentiment-backend
+   ```
+   *Alternatively, use Docker Compose:*
+   ```bash
+   docker-compose up --build
+   ```
 
-1. Open any YouTube video in your browser.
-2. Click the **YouTube Sentiment Insights** extension icon.
-3. Click the **Start Analysis** button.
-4. View the results, charts, and metrics!
+## 🔄 CI/CD Pipeline
+The project includes a GitHub Actions workflow located in `.github/workflows/main.yml`.
+- **Trigger**: Every push or pull request to the `main` branch.
+- **Jobs**:
+  - Sets up Python environment.
+  - Installs dependencies.
+  - Runs linting checks.
+  - Builds the Docker image to ensure everything is container-ready.
 
 ## 🔧 ML Pipeline
+
 
 The project uses DVC for data versioning and MLflow to track experiments.
 - **Model**: LightGBM Classifier.
