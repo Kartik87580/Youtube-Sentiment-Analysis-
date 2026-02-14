@@ -32,7 +32,7 @@ jobs:
       run: |
         docker build -t yt-analysis .
 
-   docker-push:
+  docker-push:
     needs: build-and-test
     runs-on: ubuntu-latest
 
