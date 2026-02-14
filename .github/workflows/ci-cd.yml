@@ -30,6 +30,8 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/yt-analysis
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -48,7 +50,7 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/yt-analysis:latest
+        tags: ${{ env.IMAGE_NAME }}:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
