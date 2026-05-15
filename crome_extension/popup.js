@@ -1,5 +1,5 @@
 const API_BASE_URL = "http://localhost:8000";
-const YOUTUBE_API_KEY = 'YOUR_YOUTUBE_API_KEY_HERE'; // Replace with your actual YouTube Data API v3 Key
+const YOUTUBE_API_KEY = 'AIzaSyBxZySbFIGxbaEFqlEZAAxMqsmM_MhQ-3E'; // Replace with your actual YouTube Data API v3 Key
 
 document.getElementById('analyzeBtn').addEventListener('click', async () => {
     const analyzeBtn = document.getElementById('analyzeBtn');
