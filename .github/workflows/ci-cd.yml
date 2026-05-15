@@ -68,35 +68,35 @@ jobs:
   # ──────────────────────────────────────────────
   # JOB 3: SSH into Azure VM and deploy
   # ──────────────────────────────────────────────
-  deploy:
-    name: 🚀 Deploy to Azure VM
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.AZURE_VM_HOST }}
-          username: ${{ secrets.AZURE_VM_USER }}
-          key: ${{ secrets.AZURE_VM_SSH_KEY }}
-          script: |
-            echo "🔄 Pulling latest Docker image..."
-            docker pull kartik87580/yt-analysis:latest
+  # deploy:
+  #   name: 🚀 Deploy to Azure VM
+  #   needs: build-and-push
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  #   steps:
+  #     - name: Deploy via SSH
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ secrets.AZURE_VM_HOST }}
+  #         username: ${{ secrets.AZURE_VM_USER }}
+  #         key: ${{ secrets.AZURE_VM_SSH_KEY }}
+  #         script: |
+  #           echo "🔄 Pulling latest Docker image..."
+  #           docker pull kartik87580/yt-analysis:latest
 
-            echo "🛑 Stopping old container..."
-            docker stop yt-sentiment-api || true
-            docker rm yt-sentiment-api || true
+  #           echo "🛑 Stopping old container..."
+  #           docker stop yt-sentiment-api || true
+  #           docker rm yt-sentiment-api || true
 
-            echo "▶️ Starting new container..."
-            docker run -d \
-              --name yt-sentiment-api \
-              --restart unless-stopped \
-              -p 8000:8000 \
-              kartik87580/yt-analysis:latest
+  #           echo "▶️ Starting new container..."
+  #           docker run -d \
+  #             --name yt-sentiment-api \
+  #             --restart unless-stopped \
+  #             -p 8000:8000 \
+  #             kartik87580/yt-analysis:latest
 
-            echo "🧹 Cleaning up old images..."
-            docker image prune -f
+  #           echo "🧹 Cleaning up old images..."
+  #           docker image prune -f
 
-            echo "✅ Deployment complete!"
-            docker ps | grep yt-sentiment-api
+  #           echo "✅ Deployment complete!"
+  #           docker ps | grep yt-sentiment-api
