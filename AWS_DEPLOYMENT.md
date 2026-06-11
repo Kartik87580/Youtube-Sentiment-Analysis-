@@ -1,6 +1,6 @@
-# 🚀 Azure Deployment Guide — YouTube Comment Analysis API
+# 🚀 AWS Deployment Guide — YouTube Comment Analysis API
 
-A **complete, step-by-step** guide to deploy the FastAPI sentiment analysis backend on an Azure **Virtual Machine** (Ubuntu), wire up a **CI/CD pipeline** via GitHub Actions, and finally point your **Chrome Extension** at the live server.
+A **complete, step-by-step** guide to deploy the FastAPI sentiment analysis backend on an AWS **EC2 Instance** (Ubuntu), wire up a **CI/CD pipeline** via GitHub Actions, and finally point your **Chrome Extension** at the live server.
 
 ---
 
@@ -15,9 +15,9 @@ A **complete, step-by-step** guide to deploy the FastAPI sentiment analysis back
                     │   GitHub Actions CI/CD        │
                     │  (build → push → SSH deploy)  │
                     └────────────┬────────────────-┘
-                                 │ SSH into VM
+                                 │ SSH into EC2
   Chrome Extension  ──HTTPS──►  ┌▼──────────────────────────┐
-  (popup.js)                    │  Azure VM (Ubuntu 22.04)  │
+  (popup.js)                    │  AWS EC2 (Ubuntu 22.04)   │
                                 │  Nginx  :443 → :8000      │
                                 │  Docker  → FastAPI App    │
                                 │  (lgbm_model + vectorizer)│
@@ -30,7 +30,7 @@ A **complete, step-by-step** guide to deploy the FastAPI sentiment analysis back
 | Backend | FastAPI + Uvicorn (Python 3.11) |
 | ML Model | LightGBM + TF-IDF Vectorizer |
 | Container | Docker |
-| Server | Azure VM — Ubuntu 22.04 LTS |
+| Server | AWS EC2 — Ubuntu 22.04 LTS |
 | Reverse Proxy | Nginx + SSL (Let's Encrypt) |
 | CI/CD | GitHub Actions |
 | Client | Chrome Extension |
@@ -39,86 +39,65 @@ A **complete, step-by-step** guide to deploy the FastAPI sentiment analysis back
 
 ## 📋 Pre-Deployment Checklist
 
-Before touching Azure, confirm these on your **local machine**:
+Before touching AWS, confirm these on your **local machine**:
 
 - [ ] `lgbm_model.pkl` and `tfidf_vectorizer.pkl` exist in the project root
 - [ ] `docker build -t yt-analysis .` succeeds locally
 - [ ] `docker run -p 8000:8000 yt-analysis` — `GET http://localhost:8000/` returns `{"message":"Welcome to FastAPI Sentiment API"}`
 - [ ] You have a [DockerHub](https://hub.docker.com) account (`kartik87580`)
-- [ ] You have an [Azure account](https://portal.azure.com) with an active subscription
+- [ ] You have an [AWS account](https://console.aws.amazon.com) with an active subscription
 - [ ] You have a GitHub repo with Actions enabled
 
 ---
 
-## PHASE 1 — Create the Azure Virtual Machine
+## PHASE 1 — Create the AWS EC2 Instance
 
-### Step 1.1 — Log in to Azure Portal
+### Step 1.1 — Log in to AWS Console
 
-1. Go to [https://portal.azure.com](https://portal.azure.com)
-2. Sign in with your Microsoft account.
-
----
-
-### Step 1.2 — Create a Resource Group
-
-A Resource Group is a logical container for all your Azure resources.
-
-1. In the search bar, type **"Resource groups"** → Click **Create**
-2. Fill in:
-   - **Subscription:** Your subscription
-   - **Resource group name:** `yt-sentiment-rg`
-   - **Region:** `East US` (or closest to you)
-3. Click **Review + Create** → **Create**
+1. Go to [https://console.aws.amazon.com](https://console.aws.amazon.com)
+2. Sign in with your AWS account.
 
 ---
 
-### Step 1.3 — Create the Virtual Machine
+### Step 1.2 — Navigate to EC2
 
-1. Search for **"Virtual machines"** → Click **Create** → **Azure virtual machine**
+1. In the search bar, type **"EC2"** → Click **EC2**
+2. In the left sidebar, click **Instances** → **Launch instances**
 
-2. Fill in the **Basics** tab:
+---
+
+### Step 1.3 — Launch the EC2 Instance
+
+Fill in the launch wizard:
 
 | Field | Value |
 |---|---|
-| **Subscription** | Your subscription |
-| **Resource group** | `yt-sentiment-rg` |
-| **VM name** | `yt-sentiment-vm` |
-| **Region** | `East US` |
-| **Image** | `Ubuntu Server 22.04 LTS - x64 Gen2` |
-| **Size** | `Standard_B2s` (2 vCPU, 4 GB RAM) — recommended |
-| **Authentication type** | `SSH public key` |
-| **Username** | `azureuser` |
-| **SSH public key source** | `Generate new key pair` |
-| **Key pair name** | `yt-sentiment-key` |
+| **Name** | `yt-sentiment-vm` |
+| **AMI (Image)** | `Ubuntu Server 22.04 LTS (HVM), SSD Volume Type` — 64-bit (x86) |
+| **Instance type** | `t3.small` (2 vCPU, 2 GB RAM) — recommended |
+| **Key pair** | Click **Create new key pair** → Name: `yt-sentiment-key` → Type: RSA → Format: `.pem` → **Create** |
+| **Storage** | 20 GB `gp3` (default) |
 
-> **💡 Size Note:** `Standard_B2s` costs ~$30/month and handles LightGBM inference + matplotlib chart generation comfortably. `Standard_B1s` (1 vCPU, 1 GB) is too small for this workload.
+> **💡 Instance Type Note:** `t3.small` costs ~$15/month and handles LightGBM inference + matplotlib chart generation. `t3.micro` (1 GB RAM) is too small for this workload (Free Tier eligible but will cause OOM).
 
-3. **Disks tab:** Keep default (Standard SSD, 30 GB).
+**Network Settings** (click **Edit**):
 
-4. **Networking tab:**
-   - Allow inbound ports: **SSH (22)**, **HTTP (80)**, **HTTPS (443)**
-   - These will be opened now; we lock them down via NSG rules later.
+| Setting | Value |
+|---|---|
+| **VPC** | Default VPC |
+| **Auto-assign public IP** | Enable |
+| **Security group name** | `yt-sentiment-sg` |
+| **Inbound rules** | Add: SSH (22), HTTP (80), HTTPS (443) |
 
-5. Click **Review + Create** → **Create**
+> We do **NOT** open port `8000` publicly — Nginx will proxy it.
 
-6. When prompted, **Download the private key** (`yt-sentiment-key.pem`). **Save it somewhere safe** — you cannot download it again.
+Click **Launch instance**. Wait ~1 minute.
 
-7. Wait ~2 minutes for the VM to deploy. Note the **Public IP Address** shown on the VM overview page (e.g., `20.85.123.45`).
+After launch, go to **Instances** → click your instance → note the **Public IPv4 address** (e.g., `54.123.45.67`). This is your `<YOUR_EC2_PUBLIC_IP>`.
 
 ---
 
-### Step 1.4 — Open Required Ports (Network Security Group)
-
-1. In your VM resource → Left sidebar → **Networking** → **Network security group**
-2. Confirm these inbound rules exist (Azure adds them automatically if you selected the ports above):
-   - Port `22` — SSH
-   - Port `80` — HTTP
-   - Port `443` — HTTPS
-3. We do **NOT** open port `8000` publicly — Nginx will proxy it.
-
----
-
-### Step 1.5 — Connect to the VM via SSH
+### Step 1.4 — Connect to the EC2 Instance via SSH
 
 On your **local machine** (Windows PowerShell):
 
@@ -126,11 +105,13 @@ On your **local machine** (Windows PowerShell):
 # Fix permissions on the key file (Windows equivalent)
 icacls "C:\path\to\yt-sentiment-key.pem" /inheritance:r /grant:r "$($env:USERNAME):(R)"
 
-# SSH into the VM
-ssh -i "C:\path\to\yt-sentiment-key.pem" azureuser@<YOUR_VM_PUBLIC_IP>
+# SSH into the EC2 instance
+ssh -i "C:\path\to\yt-sentiment-key.pem" ubuntu@<YOUR_EC2_PUBLIC_IP>
 ```
 
-You should see a `azureuser@yt-sentiment-vm:~$` prompt. All remaining commands in **Phase 2** run inside this SSH session.
+> **Note:** AWS Ubuntu AMIs use `ubuntu` as the default username (not `azureuser`).
+
+You should see a `ubuntu@ip-xxx-xxx-xxx-xxx:~$` prompt. All remaining commands in **Phase 2** run inside this SSH session.
 
 ---
 
@@ -161,7 +142,7 @@ sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 
 # Allow your user to run docker without sudo
-sudo usermod -aG docker azureuser
+sudo usermod -aG docker ubuntu
 newgrp docker
 
 # Verify
@@ -193,12 +174,12 @@ Create the Nginx site configuration:
 sudo nano /etc/nginx/sites-available/yt-sentiment
 ```
 
-Paste the following (replace `YOUR_DOMAIN_OR_IP` with your actual domain or VM public IP):
+Paste the following (replace `YOUR_EC2_PUBLIC_IP` with your actual EC2 public IP or domain):
 
 ```nginx
 server {
     listen 80;
-    server_name your-ip#########;
+    server_name <YOUR_EC2_PUBLIC_IP>;
 
     # Allow larger request bodies
     client_max_body_size 10M;
@@ -241,14 +222,14 @@ sudo systemctl enable nginx
 
 ### Step 2.5 — (Optional but Recommended) Set Up a Free Domain + SSL
 
-If you have a domain name (e.g., from Namecheap/Cloudflare), point an **A record** to your VM IP, then:
+If you have a domain name (e.g., from Namecheap/Cloudflare), point an **A record** to your EC2 IP, then:
 
 ```bash
 sudo certbot --nginx -d yourdomain.com
 # Follow prompts: enter email, agree to TOS, choose to redirect HTTP → HTTPS
 ```
 
-> **No domain?** You can skip this and use `http://<VM_PUBLIC_IP>` directly. The Chrome Extension will still work.
+> **No domain?** You can skip this and use `http://<EC2_PUBLIC_IP>` directly. The Chrome Extension will still work.
 
 ---
 
@@ -274,7 +255,7 @@ curl http://localhost:8000/
 # Expected: {"message":"Welcome to FastAPI Sentiment API"}
 ```
 
-At this point your API is live at `http://<VM_IP>/` through Nginx. ✅
+At this point your API is live at `http://<EC2_IP>/` through Nginx. ✅
 
 ---
 
@@ -283,7 +264,7 @@ At this point your API is live at `http://<VM_IP>/` through Nginx. ✅
 The goal: every `git push` to `main` automatically:
 1. Runs syntax checks
 2. Builds and pushes the Docker image to DockerHub
-3. SSHes into the Azure VM and restarts the container with the new image
+3. SSHes into the AWS EC2 instance and restarts the container with the new image
 
 ### Step 3.1 — Add GitHub Repository Secrets
 
@@ -295,9 +276,9 @@ Add these secrets:
 |---|---|---|
 | `DOCKER_USERNAME` | `kartik87580` | Your DockerHub username |
 | `DOCKER_PASSWORD` | Your DockerHub password or [Access Token](https://hub.docker.com/settings/security) | DockerHub → Account Settings → Security |
-| `AZURE_VM_HOST` | `20.85.123.45` | VM Public IP from Azure Portal |
-| `AZURE_VM_USER` | `azureuser` | The username you created |
-| `AZURE_VM_SSH_KEY` | The **full contents** of `yt-sentiment-key.pem` | Open the `.pem` file in a text editor, copy everything |
+| `AWS_EC2_HOST` | `54.123.45.67` | EC2 Public IP from AWS Console |
+| `AWS_EC2_USER` | `ubuntu` | Default Ubuntu AMI username |
+| `AWS_EC2_SSH_KEY` | The **full contents** of `yt-sentiment-key.pem` | Open the `.pem` file in a text editor, copy everything |
 
 > **Security tip:** Use a DockerHub **Access Token** (not your password) for `DOCKER_PASSWORD`. Create one at DockerHub → Account Settings → Security → New Access Token.
 
@@ -376,10 +357,10 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
   # ──────────────────────────────────────────────
-  # JOB 3: SSH into Azure VM and deploy
+  # JOB 3: SSH into AWS EC2 and deploy
   # ──────────────────────────────────────────────
   deploy:
-    name: 🚀 Deploy to Azure VM
+    name: 🚀 Deploy to AWS EC2
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -387,9 +368,9 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.AZURE_VM_HOST }}
-          username: ${{ secrets.AZURE_VM_USER }}
-          key: ${{ secrets.AZURE_VM_SSH_KEY }}
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
           script: |
             echo "🔄 Pulling latest Docker image..."
             docker pull kartik87580/yt-analysis:latest
@@ -416,7 +397,7 @@ Commit and push this file:
 
 ```bash
 git add .github/workflows/ci-cd.yml
-git commit -m "ci: add full Azure VM deployment pipeline"
+git commit -m "ci: add full AWS EC2 deployment pipeline"
 git push origin main
 ```
 
@@ -426,11 +407,11 @@ git push origin main
 
 1. In GitHub → **Actions** tab — you should see the workflow running.
 2. All 3 jobs should turn green ✅.
-3. After the `deploy` job completes, verify on the VM:
+3. After the `deploy` job completes, verify on the EC2 instance:
 
 ```bash
-# SSH into VM
-ssh -i "yt-sentiment-key.pem" azureuser@<YOUR_VM_IP>
+# SSH into EC2
+ssh -i "yt-sentiment-key.pem" ubuntu@<YOUR_EC2_IP>
 
 # Check the container is running
 docker ps
@@ -443,7 +424,7 @@ curl http://localhost:8000/
 
 ## PHASE 4 — Connect the Chrome Extension
 
-The Chrome Extension currently points to `http://localhost:8000`. You need to update it to point to your live Azure VM.
+The Chrome Extension currently points to `http://localhost:8000`. You need to update it to point to your live AWS EC2 instance.
 
 ### Step 4.1 — Update `popup.js`
 
@@ -457,8 +438,8 @@ const API_BASE_URL = "http://localhost:8000";
 // Option A: If you set up a domain with SSL:
 const API_BASE_URL = "https://yourdomain.com";
 
-// Option B: If using just the VM IP (no SSL):
-const API_BASE_URL = "http://20.85.123.45";  // replace with your actual IP
+// Option B: If using just the EC2 IP (no SSL):
+const API_BASE_URL = "http://54.123.45.67";  // replace with your actual EC2 IP
 ```
 
 > **⚠️ Important:** If you use `http://` (no SSL), Chrome may block requests from the extension as "mixed content" on some pages. Setting up a domain + SSL via Let's Encrypt (Step 2.5) is strongly recommended for a production extension.
@@ -467,7 +448,7 @@ const API_BASE_URL = "http://20.85.123.45";  // replace with your actual IP
 
 ### Step 4.2 — Update `manifest.json` Host Permissions
 
-Open `crome_extension/manifest.json` and update the `host_permissions` (or `permissions`) to include your Azure URL:
+Open `crome_extension/manifest.json` and update the `host_permissions` (or `permissions`) to include your AWS URL:
 
 ```json
 {
@@ -483,7 +464,7 @@ If using IP instead of domain:
 {
   "host_permissions": [
     "https://www.googleapis.com/*",
-    "http://20.85.123.45/*"
+    "http://54.123.45.67/*"
   ]
 }
 ```
@@ -537,7 +518,7 @@ curl -X POST "https://yourdomain.com/generate_chart" \
 ### View Live Container Logs
 
 ```bash
-# SSH into VM
+# SSH into EC2
 docker logs yt-sentiment-api --follow
 # Press Ctrl+C to stop following
 ```
@@ -576,13 +557,14 @@ sudo certbot renew              # actual renewal
 
 | Problem | Likely Cause | Fix |
 |---|---|---|
-| `docker: permission denied` | User not in docker group | `sudo usermod -aG docker azureuser && newgrp docker` |
+| `docker: permission denied` | User not in docker group | `sudo usermod -aG docker ubuntu && newgrp docker` |
 | `502 Bad Gateway` from Nginx | Container not running | `docker ps` → if empty, `docker run ...` again |
-| `curl: (7) Failed to connect` | Port 80/443 not open | Check Azure NSG inbound rules |
+| `curl: (7) Failed to connect` | Port 80/443 not open in Security Group | Go to EC2 → Security Groups → Edit inbound rules → Add HTTP & HTTPS |
 | GitHub Actions SSH fails | Wrong key format in secret | The secret must start with `-----BEGIN ...` |
 | Extension shows "Backend failed" | CORS or wrong URL | Check `API_BASE_URL` in `popup.js` & `allow_origins` in `main.py` |
 | Container exits immediately | Model files not in image | Verify `lgbm_model.pkl` is committed and not in `.dockerignore` |
-| `OOM Killed` (out of memory) | VM too small | Upgrade to `Standard_B2s` or `Standard_B2ms` |
+| `OOM Killed` (out of memory) | VM too small | Upgrade from `t3.micro` to `t3.small` or `t3.medium` |
+| Can't SSH into instance | Key permissions too open | Run `chmod 400 yt-sentiment-key.pem` (Linux/Mac) or `icacls` fix (Windows) |
 
 ---
 
@@ -590,13 +572,30 @@ sudo certbot renew              # actual renewal
 
 | Resource | Tier | Estimated Cost |
 |---|---|---|
-| Azure VM `Standard_B2s` | Pay-as-you-go | ~$30–35/month |
-| VM OS Disk (Standard SSD, 30 GB) | | ~$2/month |
-| Outbound bandwidth | First 5 GB free | ~$0–5/month |
-| Static Public IP | | ~$3/month |
-| **Total** | | **~$35–45/month** |
+| EC2 `t3.small` | On-Demand | ~$15/month |
+| EBS Storage (20 GB gp3) | | ~$1.6/month |
+| Outbound bandwidth | First 100 GB free | ~$0/month |
+| Elastic IP (static IP) | Free when attached to running instance | ~$0–3.6/month |
+| **Total** | | **~$17–20/month** |
 
-> **Cost Tip:** Stop the VM (`az vm stop`) when not in use to stop compute charges. The OS disk and IP still cost a small amount, but compute (the main cost) stops.
+> **Cost Tip:** Stop the EC2 instance (`Instance state → Stop`) when not in use to pause compute charges. Storage and Elastic IP may still incur small costs.
+> **Free Tier:** New AWS accounts get 750 hrs/month of `t2.micro` or `t3.micro` free for 12 months — but these are too small for this workload.
+
+---
+
+## 🔄 Key Differences from Azure Deployment
+
+| | Azure | AWS |
+|---|---|---|
+| **VM Service** | Virtual Machines | EC2 (Elastic Compute Cloud) |
+| **Resource grouping** | Resource Group | No equivalent needed (default VPC) |
+| **Default SSH user** | `azureuser` | `ubuntu` |
+| **Firewall rules** | Network Security Group (NSG) | Security Group |
+| **Instance type** | `Standard_B2s` | `t3.small` |
+| **GitHub Secret: Host** | `AZURE_VM_HOST` | `AWS_EC2_HOST` |
+| **GitHub Secret: User** | `AZURE_VM_USER` | `AWS_EC2_USER` |
+| **GitHub Secret: Key** | `AZURE_VM_SSH_KEY` | `AWS_EC2_SSH_KEY` |
+| **Est. monthly cost** | ~$35–45/month | ~$17–20/month |
 
 ---
 
@@ -604,10 +603,10 @@ sudo certbot renew              # actual renewal
 
 | File | Change |
 |---|---|
-| `.github/workflows/ci-cd.yml` | Full pipeline: test → build → push → SSH deploy |
-| `crome_extension/popup.js` | `API_BASE_URL` updated to Azure domain/IP |
-| `crome_extension/manifest.json` | `host_permissions` updated with Azure URL |
+| `.github/workflows/ci-cd.yml` | Updated secrets from `AZURE_VM_*` → `AWS_EC2_*` |
+| `crome_extension/popup.js` | `API_BASE_URL` updated to AWS EC2 domain/IP |
+| `crome_extension/manifest.json` | `host_permissions` updated with AWS URL |
 
 ---
 
-*Last updated: May 2026*
+*Last updated: June 2026*

@@ -10,7 +10,8 @@
     ],
     "host_permissions": [
         "https://www.googleapis.com/*",
-        "http://localhost/*"
+        "http://localhost/*",
+        "http://20.197.2.207/*"
     ],
     "action": {
         "default_popup": "popup.html",
