@@ -209,10 +209,11 @@ Since the current system is stateless and fetches comments dynamically, integrat
 erDiagram
     USERS {
         uuid id PK
-        string email UNIQUE
+        string email
         string password_hash
         timestamp created_at
     }
+
     ANALYZED_VIDEOS {
         string video_id PK
         string title
@@ -220,6 +221,7 @@ erDiagram
         decimal avg_sentiment_score
         timestamp last_analyzed_at
     }
+
     COMMENTS_CACHE {
         int id PK
         string video_id FK
@@ -228,6 +230,7 @@ erDiagram
         int predicted_sentiment
         timestamp published_at
     }
+
     USERS ||--o{ ANALYZED_VIDEOS : analyzes
     ANALYZED_VIDEOS ||--o{ COMMENTS_CACHE : caches
 ```
